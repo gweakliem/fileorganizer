@@ -8,3 +8,4 @@ description = "Application to organize photos"
 
 [dependencies]
 clap = { version = "4.3.19", features = ["derive"] }
+sha256 = "1.3.0"

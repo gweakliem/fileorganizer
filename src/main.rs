@@ -3,12 +3,22 @@ use clap::Parser;
 use std::path::Path;
 use std::fs;
 
+use sha256::try_digest;
+
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// Directory to organize
     #[arg(short, long)]
     dir: String,
+
+    /// Exclude pattern
+    #[arg(short, long, default_value="", required=false)]
+    exclude: String,
+
+    /// Include pattern
+    #[arg(short, long, default_value="", required=false)]
+    include: String,
 }
 
 fn organize(dir: &Path) -> i32 {
@@ -21,7 +31,11 @@ fn organize(dir: &Path) -> i32 {
                         let subdir = entry.path();
                         organize(subdir.as_path());
                     } else {
-                        println!("{}", entry.path().display());
+                        if let Ok(digest) = try_digest(entry.path()) {
+                            println!("{} {}", entry.path().display(), digest);
+                        } else {
+                            println!("IDK WTF happened there");
+                        }
                     }
                 } else {
                     println!("Couldn't get metadata for {:?}", entry.path());
