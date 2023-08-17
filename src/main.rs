@@ -1,8 +1,6 @@
 use clap::Parser;
 
-use std::collections::hash_map::Entry;
 use std::collections::hash_map::Iter;
-use std::collections::hash_map::Keys;
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fs;
@@ -80,6 +78,25 @@ impl FileIndex {
     pub fn get_hashes(&self) -> Iter<'_, String, Vec<File>> {
         self.by_hash.iter()
     }
+
+    pub fn by_name(&self, name: &String) -> Option<&Vec<File>> {
+        self.by_hash.get(name)
+    }
+
+    pub fn store_name(&mut self, name: String, file: File) -> () {
+        let path = Path::new(&name);
+        // we set up a collision on duplicate file names
+        let normalized = path.file_name().unwrap().to_string_lossy().to_string();
+        // to fully implement, check to see if there's a prefix of this name already stored
+        // then check if this name is a prefix of any existing name. Store this file under the shorter prefix
+        // would require swapping keys sometimes.
+        let bucket = self.by_hash.entry(normalized).or_insert(Vec::new());
+        bucket.push(file);
+    }
+
+    pub fn get_names(&self) -> Iter<'_, String, Vec<File>> {
+        self.by_hash.iter()
+    }
 }
 
 fn walk_dir(dir: &Path, filter: fn(name: &str) -> bool) -> io::Result<Directory> {
@@ -154,11 +171,40 @@ fn visit(node: &Directory) -> Result<FileIndex, Error> {
     return Ok(file_index);
 }
 
+fn visit_files<F>(node: &Directory, func: & mut F)
+where
+    F: FnMut(&File),
+{
+    for entry in &node.entries {
+        match entry {
+            FileTree::DirNode(sub_dir) => {
+                visit_files(&sub_dir, func);
+            }
+            FileTree::LinkNode(_symlink) => {
+                //let _digest = try_digest(Path::new(&symlink.name));
+            }
+            FileTree::FileNode(file) => {
+                func(file);
+            }
+        }
+    }
+}
+
+fn create_hash_index(node: &Directory) -> Result<FileIndex, Error> {
+    let mut file_index = FileIndex::new();
+    let mut visitor = |file: &File| -> () {
+        let digest = try_digest(Path::new(&file.name)).unwrap();
+        file_index.store_hash(digest, file.clone());
+    };
+    visit_files(node, &mut visitor);
+    return Ok(file_index);
+}
+`
 fn organize(dir: &Path) -> i32 {
     let tree = walk_dir(dir, should_skip);
     match tree {
         Ok(tree) => {
-            let index = visit(&tree);
+            let index = create_hash_index(&tree);
             //dbg!(index);
             match index {
                 Ok(file_index) => {
