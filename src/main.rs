@@ -54,7 +54,7 @@ pub enum FileTree {
 #[derive(Debug)]
 struct FileIndex {
     by_hash: HashMap<String, Vec<File>>,
-    by_name: HashMap<String, File>,
+    by_name: HashMap<String, Vec<File>>,
 }
 
 impl FileIndex {
@@ -79,7 +79,7 @@ impl FileIndex {
     }
 
     pub fn by_name(&self, name: &String) -> Option<&Vec<File>> {
-        self.by_hash.get(name)
+        self.by_name.get(name)
     }
 
     pub fn store_name(&mut self, name: String, file: File) -> () {
@@ -89,12 +89,12 @@ impl FileIndex {
         // to fully implement, check to see if there's a prefix of this name already stored
         // then check if this name is a prefix of any existing name. Store this file under the shorter prefix
         // would require swapping keys sometimes.
-        let bucket = self.by_hash.entry(normalized).or_insert(Vec::new());
+        let bucket = self.by_name.entry(normalized).or_insert(Vec::new());
         bucket.push(file);
     }
 
     pub fn get_names(&self) -> Iter<'_, String, Vec<File>> {
-        self.by_hash.iter()
+        self.by_name.iter()
     }
 }
 
