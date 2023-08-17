@@ -5,7 +5,6 @@ use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fs;
 use std::io;
-use std::io::Error;
 use std::path::Path;
 
 use sha256::try_digest;
@@ -147,31 +146,7 @@ fn should_skip(file_name: &str) -> bool {
     return !file_name.starts_with(".");
 }
 
-fn visit(node: &Directory) -> Result<FileIndex, Error> {
-    let mut file_index = FileIndex::new();
-
-    for entry in &node.entries {
-        match entry {
-            FileTree::DirNode(sub_dir) => {
-                println!("{}", sub_dir.name);
-                visit(&sub_dir)?;
-            }
-            FileTree::LinkNode(symlink) => {
-                let digest = try_digest(Path::new(&symlink.name));
-                println!("{} -> {} {}", symlink.name, symlink.target, digest?);
-                //fileIndex.store_hash(digest, file);
-            }
-            FileTree::FileNode(file) => {
-                let digest = try_digest(Path::new(&file.name))?;
-                //println!("{} {}", file.name, digest?);
-                file_index.store_hash(digest, file.clone());
-            }
-        }
-    }
-    return Ok(file_index);
-}
-
-fn visit_files<F>(node: &Directory, func: & mut F)
+fn visit_files<F>(node: &Directory, func: &mut F)
 where
     F: FnMut(&File),
 {
@@ -190,38 +165,50 @@ where
     }
 }
 
-fn create_hash_index(node: &Directory) -> Result<FileIndex, Error> {
-    let mut file_index = FileIndex::new();
+fn create_hash_index(node: &Directory, file_index: &mut FileIndex) -> () {
     let mut visitor = |file: &File| -> () {
         let digest = try_digest(Path::new(&file.name)).unwrap();
         file_index.store_hash(digest, file.clone());
     };
     visit_files(node, &mut visitor);
-    return Ok(file_index);
 }
-`
+
+fn create_name_index(node: &Directory, file_index: & mut FileIndex) -> () {
+    let mut visitor = |file: &File| -> () {
+        let name = file.name.to_string();
+        file_index.store_name(name, file.clone());
+    };
+    visit_files(node, &mut visitor);
+}
+
 fn organize(dir: &Path) -> i32 {
     let tree = walk_dir(dir, should_skip);
     match tree {
         Ok(tree) => {
-            let index = create_hash_index(&tree);
-            //dbg!(index);
-            match index {
-                Ok(file_index) => {
-                    for h in file_index.get_hashes() {
-                        let collisions = h.1;
-                        if collisions.len() > 0 {
-                            println!("Multiple matches for {}", collisions.first().unwrap().name);
-                            collisions.iter().for_each(|item| {
-                                println!("\t {}", item.name);
-                            });
-                        }
-                    }
-                }
-                _ => {
-                    println!("error reading index!");
+            let mut file_index = FileIndex::new();
+            create_hash_index(&tree, &mut file_index);
+            for h in file_index.get_hashes() {
+                let collisions = h.1;
+                if collisions.len() > 1 {
+                    println!("Multiple matches for {}", collisions.first().unwrap().name);
+                    collisions.iter().for_each(|item| {
+                        println!("\t {}", item.name);
+                    });
                 }
             }
+
+            create_name_index(&tree, &mut file_index);
+
+            for h in file_index.get_names() {
+                let collisions = h.1;
+                if collisions.len() > 1 {
+                    println!("Multiple matches for {}", collisions.first().unwrap().name);
+                    collisions.iter().for_each(|item| {
+                        println!("\t {}", item.name);
+                    });
+                }
+            }
+
             return 0;
         }
         Err(tree) => {
