@@ -166,6 +166,9 @@ fn organize(dir: &Path) -> i32 {
                         let collisions = h.1;
                         if collisions.len() > 0 {
                             println!("Multiple matches for {}", collisions.first().unwrap().name);
+                            collisions.iter().for_each(|item| {
+                                println!("\t {}", item.name);
+                            });
                         }
                     }
                 }
