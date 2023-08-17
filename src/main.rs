@@ -1,7 +1,12 @@
-use clap::Parser;
+mod file_tree;
 
-use std::collections::hash_map::Iter;
-use std::collections::HashMap;
+use clap::Parser;
+use file_tree::Directory;
+use file_tree::File;
+use file_tree::FileIndex;
+use file_tree::FileTree;
+use file_tree::Symlink;
+
 use std::ffi::OsStr;
 use std::fs;
 use std::io;
@@ -25,82 +30,7 @@ struct Args {
     include: String,
 }
 
-#[derive(Debug, Clone)]
-pub struct File {
-    pub name: String,
-    pub metadata: fs::Metadata,
-}
-
-#[derive(Debug)]
-pub struct Symlink {
-    pub name: String,
-    pub target: String,
-    pub metadata: fs::Metadata,
-}
-
-#[derive(Debug)]
-pub struct Directory {
-    pub name: String,
-    pub entries: Vec<FileTree>,
-}
-
-#[derive(Debug)]
-pub enum FileTree {
-    DirNode(Directory),
-    FileNode(File),
-    LinkNode(Symlink),
-}
-
-#[derive(Debug)]
-struct FileIndex {
-    by_hash: HashMap<String, Vec<File>>,
-    by_name: HashMap<String, Vec<File>>,
-}
-
-impl FileIndex {
-    pub fn new() -> Self {
-        Self {
-            by_hash: HashMap::new(),
-            by_name: HashMap::new(),
-        }
-    }
-
-    pub fn by_hash(&self, hash: &String) -> Option<&Vec<File>> {
-        self.by_hash.get(hash)
-    }
-
-    pub fn store_hash(&mut self, hash: String, file: File) -> () {
-        let bucket = self.by_hash.entry(hash).or_insert(Vec::new());
-        bucket.push(file);
-    }
-
-    pub fn get_hashes(&self) -> Iter<'_, String, Vec<File>> {
-        self.by_hash.iter()
-    }
-
-    pub fn by_name(&self, name: &String) -> Option<&Vec<File>> {
-        self.by_name.get(name)
-    }
-
-    pub fn store_name(&mut self, name: String, file: File) -> () {
-        let path = Path::new(&name);
-        // we set up a collision on duplicate file names
-        let normalized = path.file_name().unwrap().to_string_lossy().to_string();
-        // to fully implement, check to see if there's a prefix of this name already stored
-        // then check if this name is a prefix of any existing name. Store this file under the shorter prefix
-        // would require swapping keys sometimes.
-        let bucket = self.by_name.entry(normalized).or_insert(Vec::new());
-        bucket.push(file);
-    }
-
-    pub fn get_names(&self) -> Iter<'_, String, Vec<File>> {
-        self.by_name.iter()
-    }
-}
-
 fn walk_dir(dir: &Path, filter: fn(name: &str) -> bool) -> io::Result<Directory> {
-    //println!("walk_dir {}", dir.to_str().unwrap());
-
     let entries: Vec<fs::DirEntry> = fs::read_dir(dir)?
         .filter_map(|result| result.ok())
         .collect();
@@ -115,7 +45,7 @@ fn walk_dir(dir: &Path, filter: fn(name: &str) -> bool) -> io::Result<Directory>
             .to_str()
             .unwrap_or(".")
             .into();
-        //println!("iter {}", name);
+
         if !filter(&name) {
             continue;
         };
@@ -142,6 +72,7 @@ fn walk_dir(dir: &Path, filter: fn(name: &str) -> bool) -> io::Result<Directory>
     })
 }
 
+// Could implement the --exclude filter here too
 fn should_skip(file_name: &str) -> bool {
     return !file_name.starts_with(".");
 }
@@ -173,7 +104,7 @@ fn create_hash_index(node: &Directory, file_index: &mut FileIndex) -> () {
     visit_files(node, &mut visitor);
 }
 
-fn create_name_index(node: &Directory, file_index: & mut FileIndex) -> () {
+fn create_name_index(node: &Directory, file_index: &mut FileIndex) -> () {
     let mut visitor = |file: &File| -> () {
         let name = file.name.to_string();
         file_index.store_name(name, file.clone());
@@ -190,7 +121,10 @@ fn organize(dir: &Path) -> i32 {
             for h in file_index.get_hashes() {
                 let collisions = h.1;
                 if collisions.len() > 1 {
-                    println!("Probable duplicate content for {}", collisions.first().unwrap().name);
+                    println!(
+                        "Probable duplicate content for {}",
+                        collisions.first().unwrap().name
+                    );
                     collisions.iter().for_each(|item| {
                         println!("\t {}", item.name);
                     });
@@ -202,7 +136,10 @@ fn organize(dir: &Path) -> i32 {
             for h in file_index.get_names() {
                 let collisions = h.1;
                 if collisions.len() > 1 {
-                    println!("Possible filename duplicates for {}", collisions.first().unwrap().name);
+                    println!(
+                        "Possible filename duplicates for {}",
+                        collisions.first().unwrap().name
+                    );
                     collisions.iter().for_each(|item| {
                         println!("\t {}", item.name);
                     });
