@@ -190,7 +190,7 @@ fn organize(dir: &Path) -> i32 {
             for h in file_index.get_hashes() {
                 let collisions = h.1;
                 if collisions.len() > 1 {
-                    println!("Multiple matches for {}", collisions.first().unwrap().name);
+                    println!("Probable duplicate content for {}", collisions.first().unwrap().name);
                     collisions.iter().for_each(|item| {
                         println!("\t {}", item.name);
                     });
@@ -202,7 +202,7 @@ fn organize(dir: &Path) -> i32 {
             for h in file_index.get_names() {
                 let collisions = h.1;
                 if collisions.len() > 1 {
-                    println!("Multiple matches for {}", collisions.first().unwrap().name);
+                    println!("Possible filename duplicates for {}", collisions.first().unwrap().name);
                     collisions.iter().for_each(|item| {
                         println!("\t {}", item.name);
                     });
