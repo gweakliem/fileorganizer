@@ -13,3 +13,11 @@ Duplicate detection by
 * EXIF Metadata
 * Image similarity (resized, rotated, similar image)
 
+Future Directions
+path! macro
+https://docs.rs/path_macro/latest/path_macro/
+
+Image comparisons
+https://crates.io/crates/image-compare
+https://github.com/bokuweb/lcs-image-diff-rs
+https://github.com/kornelski/dssim
