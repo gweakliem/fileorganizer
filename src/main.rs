@@ -32,7 +32,7 @@ struct Args {
 
 fn walk_dir(dir: &Path, filter: fn(name: &str) -> bool) -> io::Result<Directory> {
     let entries: Vec<fs::DirEntry> = fs::read_dir(dir)?
-        .filter_map(|result| result.ok())
+        .filter_map(std::result::Result::ok)
         .collect();
 
     let mut directory: Vec<FileTree> = Vec::with_capacity(entries.len());
@@ -51,15 +51,15 @@ fn walk_dir(dir: &Path, filter: fn(name: &str) -> bool) -> io::Result<Directory>
         };
         let metadata = fs::metadata(&path).unwrap();
         let node = match path {
-            path if path.is_dir() => FileTree::DirNode(walk_dir(&path.as_path(), filter)?),
+            path if path.is_dir() => FileTree::DirNode(walk_dir(path.as_path(), filter)?),
             path if path.is_symlink() => FileTree::LinkNode(Symlink {
                 name: path.to_str().unwrap().into(),
                 target: fs::read_link(path).unwrap().to_string_lossy().to_string(),
-                metadata: metadata,
+                metadata,
             }),
             path if path.is_file() => FileTree::FileNode(File {
                 name: path.to_str().unwrap().into(),
-                metadata: metadata,
+                metadata,
             }),
             _ => unreachable!(),
         };
@@ -67,14 +67,14 @@ fn walk_dir(dir: &Path, filter: fn(name: &str) -> bool) -> io::Result<Directory>
     }
     let name = dir.to_str().unwrap().into();
     Ok(Directory {
-        name: name,
+        name,
         entries: directory,
     })
 }
 
 // Could implement the --exclude filter here too
 fn should_skip(file_name: &str) -> bool {
-    return !file_name.starts_with(".");
+    !file_name.starts_with('.')
 }
 
 fn visit_files<F>(node: &Directory, func: &mut F)
@@ -84,7 +84,7 @@ where
     for entry in &node.entries {
         match entry {
             FileTree::DirNode(sub_dir) => {
-                visit_files(&sub_dir, func);
+                visit_files(sub_dir, func);
             }
             FileTree::LinkNode(_symlink) => {
                 //let _digest = try_digest(Path::new(&symlink.name));
@@ -96,18 +96,18 @@ where
     }
 }
 
-fn create_hash_index(node: &Directory, file_index: &mut FileIndex) -> () {
-    let mut visitor = |file: &File| -> () {
+fn create_hash_index(node: &Directory, file_index: &mut FileIndex) {
+    let mut visitor = |file: &File| {
         let digest = try_digest(Path::new(&file.name)).unwrap();
         file_index.store_hash(digest, file.clone());
     };
     visit_files(node, &mut visitor);
 }
 
-fn create_name_index(node: &Directory, file_index: &mut FileIndex) -> () {
-    let mut visitor = |file: &File| -> () {
+fn create_name_index(node: &Directory, file_index: &mut FileIndex) {
+    let mut visitor = |file: &File| {
         let name = file.name.to_string();
-        file_index.store_name(name, file.clone());
+        file_index.store_name(&name, file.clone());
     };
     visit_files(node, &mut visitor);
 }
@@ -125,9 +125,9 @@ fn organize(dir: &Path) -> i32 {
                         "Probable duplicate content for {}",
                         collisions.first().unwrap().name
                     );
-                    collisions.iter().for_each(|item| {
-                        println!("\t {}", item.name);
-                    });
+                    for item in collisions.iter() {
+                        println!("\t{}", item.name);
+                    };
                 }
             }
 
@@ -140,17 +140,17 @@ fn organize(dir: &Path) -> i32 {
                         "Possible filename duplicates for {}",
                         collisions.first().unwrap().name
                     );
-                    collisions.iter().for_each(|item| {
-                        println!("\t {}", item.name);
-                    });
+                    for item in collisions.iter() {
+                        println!("\t{}", item.name);
+                    };
                 }
             }
 
-            return 0;
+            0
         }
         Err(tree) => {
-            println!("{}", tree);
-            return 1;
+            println!("{tree}");
+            1
         }
     }
 }

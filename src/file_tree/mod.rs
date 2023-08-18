@@ -60,8 +60,8 @@ impl FileIndex {
         self.by_name.get(name)
     }
 
-    pub fn store_name(&mut self, name: String, file: File) {
-        let path = Path::new(&name);
+    pub fn store_name(&mut self, name: &String, file: File) {
+        let path = Path::new(name);
         // we set up a collision on duplicate file names
         let normalized = path.file_stem().unwrap().to_string_lossy().to_string();
         let bucket = self.by_name.entry(normalized).or_insert(Vec::new());
@@ -85,7 +85,7 @@ mod tests {
 
         let file1 = fs::File::open("test_files/file1.txt").unwrap();
         file_index.store_name(
-            "test_files/file1.txt".to_string(),
+            &"test_files/file1.txt".to_string(),
             File {
                 name: "test_files/file1.txt".to_string(),
                 metadata: file1.metadata().unwrap(),
@@ -94,7 +94,7 @@ mod tests {
 
         let file2 = fs::File::open("test_files/foo/file1.txt").unwrap();
         file_index.store_name(
-            "test_files/foo/file1.txt".to_string(),
+            &"test_files/foo/file1.txt".to_string(),
             File {
                 name: "test_files/foo/file1.txt".to_string(),
                 metadata: file2.metadata().unwrap(),
